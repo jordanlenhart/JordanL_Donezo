@@ -13,3 +13,10 @@ datasource db {
   url      = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
 }
+
+model Todo {
+  id Int @id @default(autoincrement())
+  name String
+  completed Boolean
+  userId String
+}
