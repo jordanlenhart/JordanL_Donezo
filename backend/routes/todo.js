@@ -1,161 +1,155 @@
-import { useState, useRef } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useForm } from "react-hook-form";
-import getAxiosClient from "../axios-instance";
-import axios from "axios";
+import express from "express";
+const router = express.Router();
+import prisma from "../db/index.js";
 
-export default function Todos() {
-  const modalRef = useRef();
-  const queryClient = useQueryClient();
+router.get('/', async (req, res) => {
+    // Gets all the todos from the database
+    const todos = await prisma.todo.findMany();
+    // Responds back to the client with json with a success status and the todos array
+    res.status(200).json({
+        success: true,
+        todos,
+    });
+});
 
-  const { register, handleSubmit } = useForm({
-    defaultValues: {
-      name: "",
-      description: ""
+// Define a POST route for creating a new todo
+router.post('/', async (req, res) => {
+    // Destructure `name` and `description` from the request body
+    const { name, description } = req.body;
+    try {
+        // Use Prisma to create a new todo entry in the database
+        const newTodo = await prisma.todo.create({
+            data: {
+                name,               // Set the name of the todo from the request
+                description,        // Set the description of the todo from the request
+                completed: false,   // Default value for `completed` is set to false
+                userId: req.user.sub, // Assign the user ID
+            },
+        });
+
+        // Check if the new todo was created successfully
+        if (newTodo) {
+            // Respond with a success status and include the ID of the newly created todo
+            res.status(201).json({
+                success: true,
+                todo: newTodo.id,
+            });
+        } else {
+            // Respond with a failure status if todo creation failed
+            res.status(500).json({
+                success: false,
+                message: "Failed to create new todo",
+            });
+        }
+    } catch (e) {
+        // Log the error for debugging purposes
+        console.log(e);
+        // Respond with a generic error message if something goes wrong
+        res.status(500).json({
+            success: false,
+            message: "Something went wrong, please try again later",
+        });
+    }
+});
+
+//...GET and POST routes above
+
+// Define a PUT route for marking a todo as completed
+router.put("/:todoId/completed", async (req, res) => {
+    const todoId = Number(req.params.todoId);
+  
+    try {
+      // Find the current todo to get the current completed status
+      const currentTodo = await prisma.todo.findUnique({
+        where: { id: todoId },
+      });
+  
+      if (!currentTodo) {
+        return res.status(404).json({
+          success: false,
+          message: "Todo not found",
+        });
+      }
+  
+      // Toggle the completed status
+      const updatedTodo = await prisma.todo.update({
+        where: { id: todoId },
+        data: {
+          completed: !currentTodo.completed,
+        },
+      });
+  
+      res.status(200).json({
+        success: true,
+        todo: updatedTodo,
+      });
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({
+        success: false,
+        message: "Something went wrong, please try again later",
+      });
     }
   });
+  
 
-  const { data, isError, isLoading } = useQuery({
-    queryKey: ["todos"],
-    queryFn: async () => {
-      const axiosInstance = await getAxiosClient();
+// Define a DELETE route for removing a todo by its ID
+router.delete("/:todoId", async (req, res) => {
+    const todoId = Number(req.params.todoId);
 
-      const { data } = await axiosInstance.get("http://localhost:8080/todos");
-      // const { data } = await axios.get("http://localhost:8080/todos")
-
-      return data;
+    // Validate ID
+    if (isNaN(todoId)) {
+        return res.status(400).json({
+            success: false,
+            message: "Invalid todo ID",
+        });
     }
-  });
 
-  const { mutate: createNewTodo } = useMutation({
-    mutationKey: ["newTodo"],
-    mutationFn: async (newTodo) => {
-      const axiosInstance = await getAxiosClient();
+    try {
+        // find todo
+        const todo = await prisma.todo.findUnique({
+            where: {
+                id: todoId,
+            },
+        });
 
-      const { data } = await axiosInstance.post("http://localhost:8080/todos", newTodo);
+        // if it exists
+        if (!todo) {
+            return res.status(404).json({
+                success: false,
+                message: "Todo not found",
+            });
+        }
 
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries("todos");
+        // if it completed
+        if (!todo.completed) {
+            return res.status(400).json({
+                success: false,
+                message: "Todo must be marked as completed before deletion",
+            });
+        }
+
+        // delete
+        await prisma.todo.delete({
+            where: {
+                id: todoId,
+            },
+        });
+
+        res.status(200).json({
+            success: true,
+            message: `Todo with ID ${todoId} deleted`,
+        });
+    } catch (e) {
+        console.error("DELETE error:", e);
+        res.status(500).json({
+            success: false,
+            message: "Something went wrong, please try again later",
+        });
     }
-  });
+});
 
-  const { mutate: markAsCompleted } = useMutation({
-    mutationKey: ["markAsCompleted"],
-    mutationFn: async (todoId) => {
-      const axiosInstance = await getAxiosClient();
 
-      const { data } = await axiosInstance.put(`http://localhost:8080/todos/${todoId}/completed`);
+//...Rest of the code
 
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries("todos");
-    }
-  });
-
-  if (isLoading) {
-    return (
-      <div className="">Loading Todos...</div>
-    )
-  }
-
-  if (isError) {
-    return (
-      <div className="">There was an error</div>
-    )
-  }
-
-  console.log(data);
-
-  const toggleNewTodoModal = () => {
-    if (modalRef.current.open) {
-      modalRef.current.close();
-    } else {
-      modalRef.current.showModal();
-    }
-  }
-
-  const handleNewTodo = (values) => {
-    createNewTodo(values)
-    toggleNewTodoModal();
-  }
-
-  function NewTodoButton() {
-    return (
-      <button className="btn btn-primary" onClick={() => toggleNewTodoModal()}>
-        New Todo
-      </button>
-    )
-  }
-
-  function TodoModal() {
-    return (
-      <dialog ref={modalRef} className="modal">
-        <div className="modal-box">
-          <h3 className="font-bold text-lg">New Todo</h3>
-          <form onSubmit={handleSubmit(handleNewTodo)}>
-            <label className="form-control w-full">
-              <div className="label">
-                <span className="label-text">Name of Todo</span>
-              </div>
-              <input type="text" placeholder="Type here" className="input input-bordered w-full" {...register("name")} />
-            </label>
-            <label className="form-control w-full">
-              <div className="label">
-                <span className="label-text">Description</span>
-              </div>
-              <input type="text" placeholder="Type here" className="input input-bordered w-full" {...register("description")} />
-            </label>
-            <div className="modal-action">
-              <button type="submit" className="btn btn-primary">Create Todo</button>
-              <button type="button" onClick={() => toggleNewTodoModal()} className="btn btn-ghost">Close</button>
-            </div>
-          </form>
-        </div>
-      </dialog>
-    )
-  }
-
-  function TodoItemList() {
-    return (
-      <div className="w-lg h-sm flex column items-center justify-center gap-4">
-        {data.success && data.todos.length >= 1 && (
-          <ul className="flex column items-center justify-center gap-4">
-            {
-              data.todos.map(todo => (
-                <li className="inline-flex items-center gap-4">
-                  <div className="w-md">
-                    <h3 className="text-lg">
-                      {todo.name}
-                    </h3>
-                    <p className="text-sm">{todo.description}</p>
-                  </div>
-                  <div className="w-md">
-                    <label className="swap">
-                      <input type="checkbox" onClick={() => markAsCompleted(todo.id)} />
-                      <div className="swap-on">
-                        Yes
-                      </div>
-                      <div className="swap-off">
-                        No
-                      </div>
-                    </label>
-                  </div>
-                </li>
-              ))
-            }
-          </ul>
-        )}</div>
-    )
-  }
-
-  return (
-    <>
-      <NewTodoButton />
-      <TodoItemList />
-      <TodoModal />
-    </>
-  )
-}
+export default router;
