@@ -1,32 +1,40 @@
-import { Outlet, Link, useNavigate } from 'react-router-dom';
-import { supabase } from '../supabaseClient';
+import { Link, Outlet, useNavigate } from 'react-router-dom';
+import supabase from '../client';
 
-
-
-export default function MainLayout(){
+export default function MainLayout() {
+    const navigate = useNavigate();
 
     const handleLogout = async () => {
-        const { error } = await supabase.auth.signOut();
-        if (error) {
-          console.error('Logout error:', error.message);
-        } else {
-          navigate('/login');
-        }
-      };    
-
+        await supabase.auth.signOut();
+        navigate('/login');
+    };
     return (
+
         <>
-          <div className="navbar bg-base-100">
-            <div className="flex-1">
-                <Link to="/" className="btn btn-ghost text-xl">Donezo</Link>
+            <div className="w-full bg-white shadow-md px-4 py-3 flex items-center justify-between">
+                {/* Left: Brand */}
+                <div className="flex items-center space-x-2">
+                    <Link to="/" className="text-2xl font-bold text-gray-800 hover:text-blue-600 transition">
+                        Donezo
+                    </Link>
+                </div>
+
+                {/* Right: Logout */}
+                <div>
+                    <ul className="flex items-center space-x-4">
+                        <li>
+                            <button
+                                onClick={handleLogout}
+                                className="text-sm font-medium text-blue-600 hover:text-blue-800 transition hover:underline"
+                            >
+                                Logout
+                            </button>
+                        </li>
+                    </ul>
+                </div>
             </div>
-            <div className="flex-none">
-              <ul className="menu menu-horizontal px-1">
-                <li><button className="btn btn-link">Logout</button></li>
-              </ul>
-            </div>
-          </div>
-          <Outlet />
+
+            <Outlet />
         </>
-      )
+    )
 }

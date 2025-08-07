@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, useNavigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useNavigate, Navigate } from "react-router-dom";
 import { QueryClientProvider, QueryClient } from "@tanstack/react-query";
 import MainLayout from "./layouts/main-layout";
 import ProtectedRoute from "./components/protected-route";
@@ -6,31 +6,39 @@ import Login from "./pages/login";
 import Signup from "./pages/signup";
 import Todos from "./pages/todos";
 import { useEffect } from "react";
-import { QueryClientProvider, QueryClient } from "@tanstack/react-query";
 
 const client = new QueryClient();
 
-function RedirectToLogin() {
-  const navigate = useNavigate();
+// function RedirectToLogin() {
+//   const navigate = useNavigate();
 
-  useEffect(() => {
-    navigate("/login")
-  }, [])
+//   useEffect(() => {
+//     navigate("/login")
+//   }, [])
 
-  return <></>
-}
+//   return <></>
+// }
 
 function App() {
   return (
     <QueryClientProvider client={client}>
       <BrowserRouter>
         <Routes>
+          <Route path="/" element={<Navigate to="/login" replace />} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
           <Route path="/todos" element={<MainLayout />}>
-            <Route path="/todos" element={<ProtectedRoute><Todos /></ProtectedRoute>} />
+            <Route
+              path="/todos"
+              element={
+                <ProtectedRoute>
+                  <Todos />
+                </ProtectedRoute>
+              }
+            />
           </Route>
         </Routes>
+
       </BrowserRouter>
     </QueryClientProvider>
   )
